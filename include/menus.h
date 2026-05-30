@@ -5,6 +5,7 @@
 #include <vector>
 
 class CGlobalVars;
+class CGameEntitySystem;
 
 #define Utils_INTERFACE "IUtilsApi"
 
@@ -16,6 +17,7 @@ class IUtilsApi
 public:
   virtual void PrintToChat(int iSlot, const char* msg, ...) = 0;
   virtual void PrintToChatAll(const char* msg, ...) = 0;
+  virtual CGameEntitySystem* GetCGameEntitySystem() = 0;
   virtual CGlobalVars* GetCGlobalVars() = 0;
   virtual const char* GetLanguage() = 0;
   virtual void StartupServer(SourceMM::PluginId id, StartupCallback fn) = 0;
