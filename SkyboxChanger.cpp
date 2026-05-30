@@ -5,7 +5,6 @@
 #include <vector.h>
 #include <baseentity.h>
 #include <igameevents.h>
-#include <color.h>
 #include "include/menus.h"
 
 #include <iserver.h>
@@ -180,7 +179,7 @@ void SkyboxChanger::AllPluginsLoaded()
   g_pUtils = static_cast<IUtilsApi*>(g_SMAPI->MetaFactory(Utils_INTERFACE, &ret, nullptr));
   if (ret == META_IFACE_FAILED || !g_pUtils)
   {
-    ConColorMsg(Color(255, 0, 0, 255), "[%s] Missing Utils system plugin\n", GetLogTag());
+    META_CONPRINTF("[%s] Missing Utils system plugin\n", GetLogTag());
     engine->ServerCommand(("meta unload " + std::to_string(g_PLID)).c_str());
     return;
   }
