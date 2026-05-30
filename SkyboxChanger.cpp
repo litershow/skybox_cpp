@@ -128,6 +128,17 @@ namespace
     return ExecuteSkyChange(args.Arg(1), slot, reloadMap);
   }
 
+  bool HandleSkyCommandArgs(const CCommand& args, int slot, bool reloadMap)
+  {
+    if (args.ArgC() < 2)
+    {
+      PrintResult(slot, "[SkyboxChangerCpp] Usage: mm_sky_set <skyname-or-path>\n");
+      return true;
+    }
+
+    return ExecuteSkyChange(args.Arg(1), slot, reloadMap);
+  }
+
   void StartupServer()
   {
     g_pGameEntitySystem = nullptr;
@@ -141,6 +152,44 @@ namespace
       g_StartupInitialized = true;
     }
   }
+}
+
+CON_COMMAND_F(mm_sky_set, "Set server skybox", FCVAR_GAMEDLL)
+{
+  HandleSkyCommandArgs(args, -1, false);
+}
+
+CON_COMMAND_F(mm_sky_reload, "Reload current map after sky change", FCVAR_GAMEDLL)
+{
+  const std::string current = g_CurrentSkyName;
+  if (current.empty())
+  {
+    PrintResult(-1, "[SkyboxChangerCpp] No current sky is stored yet.\n");
+    return;
+  }
+
+  ExecuteSkyChange(current, -1, true);
+}
+
+CON_COMMAND_F(mm_sky_reset, "Reset sky to the startup default", FCVAR_GAMEDLL)
+{
+  if (g_DefaultSkyName.empty())
+  {
+    PrintResult(-1, "[SkyboxChangerCpp] Default sky is unknown for this session.\n");
+    return;
+  }
+
+  ExecuteSkyChange(g_DefaultSkyName, -1, false);
+}
+
+CON_COMMAND_F(mm_sky_status, "Show current sky status", FCVAR_GAMEDLL)
+{
+  char buffer[512] = {};
+  g_SMAPI->Format(buffer, sizeof(buffer),
+    "[SkyboxChangerCpp] default='%s' current='%s'\n",
+    g_DefaultSkyName.c_str(),
+    g_CurrentSkyName.c_str());
+  PrintResult(-1, buffer);
 }
 
 bool SkyboxChanger::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, bool late)
@@ -176,39 +225,6 @@ void SkyboxChanger::AllPluginsLoaded()
   }
 
   g_pUtils->StartupServer(g_PLID, StartupServer);
-
-  g_pUtils->RegCommand(g_PLID, {"mm_sky_set"}, {"!skyset"}, [](int slot, const char* content) {
-    return HandleSkyCommandCommon(slot, content, false);
-  });
-
-  g_pUtils->RegCommand(g_PLID, {"mm_sky_reload"}, {"!skyreload"}, [](int slot, const char* content) {
-    const std::string current = g_CurrentSkyName;
-    if (current.empty())
-    {
-      PrintResult(slot, "[SkyboxChangerCpp] No current sky is stored yet.\n");
-      return true;
-    }
-    return ExecuteSkyChange(current, slot, true);
-  });
-
-  g_pUtils->RegCommand(g_PLID, {"mm_sky_reset"}, {"!skyreset"}, [](int slot, const char* content) {
-    if (g_DefaultSkyName.empty())
-    {
-      PrintResult(slot, "[SkyboxChangerCpp] Default sky is unknown for this session.\n");
-      return true;
-    }
-    return ExecuteSkyChange(g_DefaultSkyName, slot, false);
-  });
-
-  g_pUtils->RegCommand(g_PLID, {"mm_sky_status"}, {"!skystatus"}, [](int slot, const char* content) {
-    char buffer[512] = {};
-    g_SMAPI->Format(buffer, sizeof(buffer),
-      "[SkyboxChangerCpp] default='%s' current='%s'\n",
-      g_DefaultSkyName.c_str(),
-      g_CurrentSkyName.c_str());
-    PrintResult(slot, buffer);
-    return true;
-  });
 
   META_CONPRINTF("[SkyboxChangerCpp] Loaded. Commands: mm_sky_set, mm_sky_reload, mm_sky_reset, mm_sky_status\n");
 }
