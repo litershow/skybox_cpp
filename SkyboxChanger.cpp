@@ -1,10 +1,5 @@
 #include "SkyboxChanger.h"
 #include "metamod_oslink.h"
-#include <entity2/entitysystem.h>
-#include <ehandle.h>
-#include <vector.h>
-#include <baseentity.h>
-#include <igameevents.h>
 #include "include/menus.h"
 
 #include <iserver.h>
@@ -66,19 +61,6 @@ namespace
       value.resize(value.size() - 2);
 
     return Trim(value);
-  }
-
-  std::string GetCurrentSkyFromCvar()
-  {
-    if (!g_pCVar)
-      return std::string();
-
-    ConVar* skyCvar = g_pCVar->FindVar("sv_skyname");
-    if (!skyCvar)
-      return std::string();
-
-    const char* value = skyCvar->GetString();
-    return value ? value : std::string();
   }
 
   void PrintResult(int slot, const char* message)
@@ -145,8 +127,8 @@ namespace
 
     if (!g_StartupInitialized)
     {
-      g_DefaultSkyName = GetCurrentSkyFromCvar();
-      g_CurrentSkyName = g_DefaultSkyName;
+      g_DefaultSkyName.clear();
+      g_CurrentSkyName.clear();
       g_StartupInitialized = true;
     }
   }
@@ -191,7 +173,7 @@ void SkyboxChanger::AllPluginsLoaded()
   });
 
   g_pUtils->RegCommand(g_PLID, {"sky_reload"}, {"!skyreload"}, [](int slot, const char* content) {
-    const std::string current = g_CurrentSkyName.empty() ? GetCurrentSkyFromCvar() : g_CurrentSkyName;
+    const std::string current = g_CurrentSkyName;
     if (current.empty())
     {
       PrintResult(slot, "[SkyboxChangerCpp] No current sky is stored yet.\n");
@@ -210,13 +192,11 @@ void SkyboxChanger::AllPluginsLoaded()
   });
 
   g_pUtils->RegCommand(g_PLID, {"sky_status"}, {"!skystatus"}, [](int slot, const char* content) {
-    const std::string live = GetCurrentSkyFromCvar();
     char buffer[512] = {};
     g_SMAPI->Format(buffer, sizeof(buffer),
-      "[SkyboxChangerCpp] default='%s' current='%s' cvar='%s'\n",
+      "[SkyboxChangerCpp] default='%s' current='%s'\n",
       g_DefaultSkyName.c_str(),
-      g_CurrentSkyName.c_str(),
-      live.c_str());
+      g_CurrentSkyName.c_str());
     PrintResult(slot, buffer);
     return true;
   });
