@@ -70,3 +70,25 @@ jobs:
         with:
           name: ${{ github.event.repository.name }}-${{ steps.pv.outputs.version }}
           path: ${{ github.workspace }}/${{ github.event.repository.name }}-${{ steps.pv.outputs.version }}.zip
+
+      - name: Check if release already exists
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: release_check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.pv.outputs.tag }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.release_check.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.pv.outputs.tag }}
+          name: ${{ steps.pv.outputs.tag }}
+          files: ${{ github.workspace }}/${{ github.event.repository.name }}-${{ steps.pv.outputs.version }}.zip
+          generate_release_notes: true
+          make_latest: "true"

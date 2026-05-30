@@ -4,6 +4,7 @@
 
 #include <iserver.h>
 #include <convar.h>
+#include <entity2/entitysystem.h>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -13,7 +14,13 @@ PLUGIN_EXPOSE(SkyboxChanger, g_SkyboxChanger);
 
 IVEngineServer2* engine = nullptr;
 IUtilsApi* g_pUtils = nullptr;
+CGameEntitySystem* g_pGameEntitySystem = nullptr;
 CGlobalVars* gpGlobals = nullptr;
+
+CGameEntitySystem* GameEntitySystem()
+{
+  return g_pGameEntitySystem;
+}
 
 namespace
 {
@@ -123,7 +130,9 @@ namespace
 
   void StartupServer()
   {
+    g_pGameEntitySystem = nullptr;
     gpGlobals = g_pUtils->GetCGlobalVars();
+    g_pGameEntitySystem = g_pUtils->GetCGameEntitySystem();
 
     if (!g_StartupInitialized)
     {
