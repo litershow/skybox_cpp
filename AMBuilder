@@ -8,8 +8,14 @@ for sdk_target in MMSPlugin.sdk_targets:
   cxx.cxxflags += ['-Wno-invalid-offsetof']
   binary = MMSPlugin.HL2Library(builder, cxx, MMSPlugin.plugin_name, sdk)
 
+  if sdk_target.protoc is not None:
+    binary.custom = [builder.tools.Protoc(protoc = sdk_target.protoc, sources = [
+      os.path.join(sdk['path'], 'common', 'network_connection.proto')
+    ])]
+
   binary.compiler.cxxincludes += [
     os.path.join(builder.sourcePath, 'include'),
+    binary.localFolder,
   ]
 
   binary.sources += [
