@@ -121,7 +121,7 @@ namespace
     args.Tokenize(content);
     if (args.ArgC() < 2)
     {
-      PrintResult(slot, "[SkyboxChangerCpp] Usage: sky_set <skyname-or-path>\n");
+      PrintResult(slot, "[SkyboxChangerCpp] Usage: mm_sky_set <skyname-or-path>\n");
       return true;
     }
 
@@ -177,11 +177,11 @@ void SkyboxChanger::AllPluginsLoaded()
 
   g_pUtils->StartupServer(g_PLID, StartupServer);
 
-  g_pUtils->RegCommand(g_PLID, {"sky_set"}, {"!skyset"}, [](int slot, const char* content) {
+  g_pUtils->RegCommand(g_PLID, {"mm_sky_set"}, {"!skyset"}, [](int slot, const char* content) {
     return HandleSkyCommandCommon(slot, content, false);
   });
 
-  g_pUtils->RegCommand(g_PLID, {"sky_reload"}, {"!skyreload"}, [](int slot, const char* content) {
+  g_pUtils->RegCommand(g_PLID, {"mm_sky_reload"}, {"!skyreload"}, [](int slot, const char* content) {
     const std::string current = g_CurrentSkyName;
     if (current.empty())
     {
@@ -191,7 +191,7 @@ void SkyboxChanger::AllPluginsLoaded()
     return ExecuteSkyChange(current, slot, true);
   });
 
-  g_pUtils->RegCommand(g_PLID, {"sky_reset"}, {"!skyreset"}, [](int slot, const char* content) {
+  g_pUtils->RegCommand(g_PLID, {"mm_sky_reset"}, {"!skyreset"}, [](int slot, const char* content) {
     if (g_DefaultSkyName.empty())
     {
       PrintResult(slot, "[SkyboxChangerCpp] Default sky is unknown for this session.\n");
@@ -200,7 +200,7 @@ void SkyboxChanger::AllPluginsLoaded()
     return ExecuteSkyChange(g_DefaultSkyName, slot, false);
   });
 
-  g_pUtils->RegCommand(g_PLID, {"sky_status"}, {"!skystatus"}, [](int slot, const char* content) {
+  g_pUtils->RegCommand(g_PLID, {"mm_sky_status"}, {"!skystatus"}, [](int slot, const char* content) {
     char buffer[512] = {};
     g_SMAPI->Format(buffer, sizeof(buffer),
       "[SkyboxChangerCpp] default='%s' current='%s'\n",
@@ -209,6 +209,8 @@ void SkyboxChanger::AllPluginsLoaded()
     PrintResult(slot, buffer);
     return true;
   });
+
+  META_CONPRINTF("[SkyboxChangerCpp] Loaded. Commands: mm_sky_set, mm_sky_reload, mm_sky_reset, mm_sky_status\n");
 }
 
 const char* SkyboxChanger::GetLicense() { return "GPL"; }
