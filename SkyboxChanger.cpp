@@ -11,6 +11,7 @@
 #include <cstring>
 #include <dlfcn.h>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 SkyboxChanger g_SkyboxChanger;
@@ -145,11 +146,6 @@ namespace
     if (!AcquireMaterialSystem())
       return nullptr;
 
-    std::string path = materialPath;
-    if (path.size() > 2 && path.compare(path.size() - 2, 2, "_c") == 0)
-      path.resize(path.size() - 2);
-
-    void* outMaterial = nullptr;
     auto** vtable = *reinterpret_cast<void***>(g_pMaterialSystem);
     void* fnRaw = vtable[kFindOrCreateMaterialVtableIndex];
     if (!fnRaw)
@@ -157,15 +153,43 @@ namespace
 
     using LinuxThunkFn = void* (*)(void*, void*, const char*);
     using ThisCallLikeFn = void* (*)(void*, void*, const char*);
-
     auto linuxThunk = reinterpret_cast<LinuxThunkFn>(fnRaw);
-    if (void* material = ExtractMaterialHandle(linuxThunk(&outMaterial, nullptr, path.c_str())))
-      return material;
-
-    outMaterial = nullptr;
     auto thisCallLike = reinterpret_cast<ThisCallLikeFn>(fnRaw);
-    if (void* material = ExtractMaterialHandle(thisCallLike(g_pMaterialSystem, &outMaterial, path.c_str())))
-      return material;
+
+    std::vector<std::string> candidates;
+    candidates.push_back(materialPath);
+
+    if (materialPath.size() > 2 && materialPath.compare(materialPath.size() - 2, 2, "_c") == 0)
+      candidates.push_back(materialPath.substr(0, materialPath.size() - 2));
+    else
+      candidates.push_back(materialPath + "_c");
+
+    if (materialPath.rfind("materials/", 0) == 0)
+      candidates.push_back(materialPath.substr(10));
+
+    if (materialPath.find(".vmat") != std::string::npos)
+      candidates.push_back(materialPath.substr(0, materialPath.find(".vmat")));
+    else
+      candidates.push_back(materialPath + ".vmat");
+
+    if (materialPath.rfind("materials/skybox/", 0) == 0)
+      candidates.push_back(materialPath.substr(std::strlen("materials/")));
+
+    std::unordered_set<std::string> seen;
+    for (const std::string& candidateRaw : candidates)
+    {
+      std::string candidate = candidateRaw;
+      if (candidate.empty() || !seen.insert(candidate).second)
+        continue;
+
+      void* outMaterial = nullptr;
+      if (void* material = ExtractMaterialHandle(linuxThunk(&outMaterial, nullptr, candidate.c_str())))
+        return material;
+
+      outMaterial = nullptr;
+      if (void* material = ExtractMaterialHandle(thisCallLike(g_pMaterialSystem, &outMaterial, candidate.c_str())))
+        return material;
+    }
 
     return nullptr;
   }
@@ -402,7 +426,7 @@ void SkyboxChanger::AllPluginsLoaded()
 }
 
 const char* SkyboxChanger::GetLicense() { return "GPL"; }
-const char* SkyboxChanger::GetVersion() { return "0.1.3"; }
+const char* SkyboxChanger::GetVersion() { return "0.1.4"; }
 const char* SkyboxChanger::GetDate() { return __DATE__; }
 const char* SkyboxChanger::GetLogTag() { return "SkyboxChangerCpp"; }
 const char* SkyboxChanger::GetAuthor() { return "OpenAI Codex"; }
