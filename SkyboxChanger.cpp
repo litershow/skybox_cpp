@@ -5,6 +5,8 @@
 #include <iserver.h>
 #include <convar.h>
 #include <entity2/entitysystem.h>
+#include <entity2/entitykeyvalues.h>
+#include <ehandle.h>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -26,6 +28,7 @@ namespace
 {
   std::string g_DefaultSkyName;
   std::string g_CurrentSkyName;
+  std::string g_CurrentSkyMaterial;
   bool g_StartupInitialized = false;
 
   std::string Trim(std::string value)
@@ -70,6 +73,29 @@ namespace
     return Trim(value);
   }
 
+  std::string NormalizeSkyMaterialPath(const std::string& raw)
+  {
+    std::string value = Trim(raw);
+    for (char& ch : value)
+    {
+      if (ch == '\\')
+        ch = '/';
+    }
+
+    if (value.rfind("materials/", 0) != 0)
+    {
+      if (value.rfind("skybox/", 0) == 0)
+        value = "materials/" + value;
+      else
+        value = "materials/skybox/" + value;
+    }
+
+    if (value.find(".vmat") == std::string::npos)
+      value += ".vmat";
+
+    return value;
+  }
+
   void PrintResult(int slot, const char* message)
   {
     if (!g_pUtils)
@@ -81,9 +107,49 @@ namespace
       META_CONPRINT(message);
   }
 
+  bool ReplaceMapSkyEntity(const std::string& materialPath)
+  {
+    if (!g_pUtils)
+      return false;
+
+    std::vector<CEntityInstance*> skies = UTIL_FindEntityByClassnameAll("env_sky");
+    for (CEntityInstance* sky : skies)
+    {
+      if (!sky)
+        continue;
+      g_pUtils->RemoveEntity(sky);
+    }
+
+    CBaseEntity* created = g_pUtils->CreateEntityByName("env_sky", CEntityIndex(-1));
+    if (!created)
+      return false;
+
+    CEntityInstance* entity = reinterpret_cast<CEntityInstance*>(created);
+    auto* keyValues = new CEntityKeyValues();
+    keyValues->SetString("classname", "env_sky");
+    keyValues->SetString("skyname", materialPath.c_str());
+    keyValues->SetString("origin", "0.0 0.0 0.0");
+    keyValues->SetString("angles", "0.0 0.0 0.0");
+    keyValues->SetString("scales", "1.0 1.0 1.0");
+    keyValues->SetBool("useLocalOffset", false);
+    keyValues->SetBool("StartDisabled", false);
+    keyValues->SetFloat("brightnessscale", 1.0f);
+
+    Vector4D tint;
+    tint.x = 255.0f;
+    tint.y = 255.0f;
+    tint.z = 255.0f;
+    tint.w = 255.0f;
+    keyValues->SetVector4D("tint_color", tint);
+
+    g_pUtils->DispatchSpawn(entity, keyValues);
+    return true;
+  }
+
   bool ExecuteSkyChange(const std::string& requested, int slot, bool reloadMap)
   {
     const std::string normalized = NormalizeSkyName(requested);
+    const std::string materialPath = NormalizeSkyMaterialPath(requested);
     if (normalized.empty())
     {
       PrintResult(slot, "[SkyboxChangerCpp] Invalid sky name.\n");
@@ -94,6 +160,9 @@ namespace
     g_SMAPI->Format(command, sizeof(command), "sv_skyname \"%s\"", normalized.c_str());
     engine->ServerCommand(command);
     g_CurrentSkyName = normalized;
+    g_CurrentSkyMaterial = materialPath;
+
+    const bool skyEntityReplaced = ReplaceMapSkyEntity(materialPath);
 
     if (reloadMap)
     {
@@ -108,8 +177,9 @@ namespace
 
     char result[512] = {};
     g_SMAPI->Format(result, sizeof(result),
-      "[SkyboxChangerCpp] Sky set to '%s'%s",
+      "[SkyboxChangerCpp] Sky set to '%s' (%s)%s",
       normalized.c_str(),
+      skyEntityReplaced ? "env_sky replaced" : "env_sky replace failed",
       reloadMap ? " and map reload requested.\n" : ". Reload the map if the sky does not refresh immediately.\n");
     PrintResult(slot, result);
     return true;
@@ -149,6 +219,7 @@ namespace
     {
       g_DefaultSkyName.clear();
       g_CurrentSkyName.clear();
+      g_CurrentSkyMaterial.clear();
       g_StartupInitialized = true;
     }
   }
@@ -186,9 +257,10 @@ CON_COMMAND_F(mm_sky_status, "Show current sky status", FCVAR_GAMEDLL)
 {
   char buffer[512] = {};
   g_SMAPI->Format(buffer, sizeof(buffer),
-    "[SkyboxChangerCpp] default='%s' current='%s'\n",
+    "[SkyboxChangerCpp] default='%s' current='%s' material='%s'\n",
     g_DefaultSkyName.c_str(),
-    g_CurrentSkyName.c_str());
+    g_CurrentSkyName.c_str(),
+    g_CurrentSkyMaterial.c_str());
   PrintResult(-1, buffer);
 }
 
