@@ -19,6 +19,7 @@ IVEngineServer2* engine = nullptr;
 IUtilsApi* g_pUtils = nullptr;
 CGameEntitySystem* g_pGameEntitySystem = nullptr;
 CGlobalVars* gpGlobals = nullptr;
+void* g_pMaterialSystem = nullptr;
 
 CGameEntitySystem* GameEntitySystem()
 {
@@ -106,11 +107,7 @@ namespace
 
   void* FindMaterialByPath(const std::string& materialPath)
   {
-    if (materialPath.empty())
-      return nullptr;
-
-    void* materialSystem = CreateInterfaceFn(GetEngineFactory)("VMaterialSystem2_001", nullptr);
-    if (!materialSystem)
+    if (materialPath.empty() || !g_pMaterialSystem)
       return nullptr;
 
     std::string path = materialPath;
@@ -120,7 +117,7 @@ namespace
     void* outMaterial = nullptr;
 
     using LinuxFn = void* (*)(void*, void*, const char*);
-    auto** vtable = *reinterpret_cast<void***>(materialSystem);
+    auto** vtable = *reinterpret_cast<void***>(g_pMaterialSystem);
     auto fn = reinterpret_cast<LinuxFn>(vtable[kFindOrCreateMaterialVtableIndex]);
     if (!fn)
       return nullptr;
@@ -316,6 +313,7 @@ bool SkyboxChanger::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen,
 
   GET_V_IFACE_CURRENT(GetEngineFactory, g_pCVar, ICvar, CVAR_INTERFACE_VERSION);
   GET_V_IFACE_CURRENT(GetEngineFactory, engine, IVEngineServer2, SOURCE2ENGINETOSERVER_INTERFACE_VERSION);
+  GET_V_IFACE_ANY(GetEngineFactory, g_pMaterialSystem, void, "VMaterialSystem2_001");
 
   g_SMAPI->AddListener(this, this);
   ConVar_Register(FCVAR_GAMEDLL | FCVAR_SERVER_CAN_EXECUTE | FCVAR_CLIENT_CAN_EXECUTE | FCVAR_NOTIFY);
@@ -348,7 +346,7 @@ void SkyboxChanger::AllPluginsLoaded()
 }
 
 const char* SkyboxChanger::GetLicense() { return "GPL"; }
-const char* SkyboxChanger::GetVersion() { return "0.1.0"; }
+const char* SkyboxChanger::GetVersion() { return "0.1.1"; }
 const char* SkyboxChanger::GetDate() { return __DATE__; }
 const char* SkyboxChanger::GetLogTag() { return "SkyboxChangerCpp"; }
 const char* SkyboxChanger::GetAuthor() { return "OpenAI Codex"; }
