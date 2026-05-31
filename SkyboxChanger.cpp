@@ -105,6 +105,14 @@ namespace
     return value;
   }
 
+  void* ExtractMaterialHandle(void* materialPtrPtr)
+  {
+    if (!materialPtrPtr)
+      return nullptr;
+
+    return *reinterpret_cast<void**>(materialPtrPtr);
+  }
+
   void* FindMaterialByPath(const std::string& materialPath)
   {
     if (materialPath.empty() || !g_pMaterialSystem)
@@ -115,18 +123,24 @@ namespace
       path.resize(path.size() - 2);
 
     void* outMaterial = nullptr;
-
-    using LinuxFn = void* (*)(void*, void*, const char*);
     auto** vtable = *reinterpret_cast<void***>(g_pMaterialSystem);
-    auto fn = reinterpret_cast<LinuxFn>(vtable[kFindOrCreateMaterialVtableIndex]);
-    if (!fn)
+    void* fnRaw = vtable[kFindOrCreateMaterialVtableIndex];
+    if (!fnRaw)
       return nullptr;
 
-    void* materialPtrPtr = fn(&outMaterial, nullptr, path.c_str());
-    if (!materialPtrPtr)
-      return nullptr;
+    using LinuxThunkFn = void* (*)(void*, void*, const char*);
+    using ThisCallLikeFn = void* (*)(void*, void*, const char*);
 
-    return *reinterpret_cast<void**>(materialPtrPtr);
+    auto linuxThunk = reinterpret_cast<LinuxThunkFn>(fnRaw);
+    if (void* material = ExtractMaterialHandle(linuxThunk(&outMaterial, nullptr, path.c_str())))
+      return material;
+
+    outMaterial = nullptr;
+    auto thisCallLike = reinterpret_cast<ThisCallLikeFn>(fnRaw);
+    if (void* material = ExtractMaterialHandle(thisCallLike(g_pMaterialSystem, &outMaterial, path.c_str())))
+      return material;
+
+    return nullptr;
   }
 
   void PrintResult(int slot, const char* message)
@@ -346,7 +360,7 @@ void SkyboxChanger::AllPluginsLoaded()
 }
 
 const char* SkyboxChanger::GetLicense() { return "GPL"; }
-const char* SkyboxChanger::GetVersion() { return "0.1.1"; }
+const char* SkyboxChanger::GetVersion() { return "0.1.2"; }
 const char* SkyboxChanger::GetDate() { return __DATE__; }
 const char* SkyboxChanger::GetLogTag() { return "SkyboxChangerCpp"; }
 const char* SkyboxChanger::GetAuthor() { return "OpenAI Codex"; }
