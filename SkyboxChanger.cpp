@@ -112,14 +112,6 @@ namespace
     if (!g_pUtils)
       return false;
 
-    std::vector<CEntityInstance*> skies = UTIL_FindEntityByClassnameAll("env_sky");
-    for (CEntityInstance* sky : skies)
-    {
-      if (!sky)
-        continue;
-      g_pUtils->RemoveEntity(sky);
-    }
-
     CBaseEntity* created = g_pUtils->CreateEntityByName("env_sky", CEntityIndex(-1));
     if (!created)
       return false;
