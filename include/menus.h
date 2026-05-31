@@ -28,6 +28,7 @@ public:
   virtual void DispatchSpawn(CEntityInstance* entity, CEntityKeyValues* keyValues) = 0;
   virtual CBaseEntity* CreateEntityByName(const char* className, CEntityIndex forceEdictIndex) = 0;
   virtual void RemoveEntity(CEntityInstance* entity) = 0;
+  virtual void SetStateChanged(CBaseEntity* entity, const char* className, const char* fieldName, int extraOffset = 0) = 0;
   virtual void ClearAllHooks(SourceMM::PluginId id) = 0;
   virtual void PrintToConsole(int iSlot, const char* msg, ...) = 0;
   virtual void PrintToConsoleAll(const char* msg, ...) = 0;

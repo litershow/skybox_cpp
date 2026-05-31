@@ -7,6 +7,7 @@
 #include <entity2/entitysystem.h>
 #include <entity2/entitykeyvalues.h>
 #include <ehandle.h>
+#include <cstdint>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -26,6 +27,13 @@ CGameEntitySystem* GameEntitySystem()
 
 namespace
 {
+  constexpr std::ptrdiff_t kEnvSkyMaterialOffset = 0x768;
+  constexpr std::ptrdiff_t kEnvSkyMaterialLightingOnlyOffset = 0x770;
+  constexpr std::ptrdiff_t kEnvSkyStartDisabledOffset = 0x778;
+  constexpr std::ptrdiff_t kEnvSkyBrightnessOffset = 0x784;
+  constexpr std::ptrdiff_t kEnvSkyEnabledOffset = 0x79C;
+  constexpr int kFindOrCreateMaterialVtableIndex = 14;
+
   std::string g_DefaultSkyName;
   std::string g_CurrentSkyName;
   std::string g_CurrentSkyMaterial;
@@ -96,6 +104,34 @@ namespace
     return value;
   }
 
+  void* FindMaterialByPath(const std::string& materialPath)
+  {
+    if (materialPath.empty())
+      return nullptr;
+
+    void* materialSystem = CreateInterfaceFn(GetEngineFactory)("VMaterialSystem2_001", nullptr);
+    if (!materialSystem)
+      return nullptr;
+
+    std::string path = materialPath;
+    if (path.size() > 2 && path.compare(path.size() - 2, 2, "_c") == 0)
+      path.resize(path.size() - 2);
+
+    void* outMaterial = nullptr;
+
+    using LinuxFn = void* (*)(void*, void*, const char*);
+    auto** vtable = *reinterpret_cast<void***>(materialSystem);
+    auto fn = reinterpret_cast<LinuxFn>(vtable[kFindOrCreateMaterialVtableIndex]);
+    if (!fn)
+      return nullptr;
+
+    void* materialPtrPtr = fn(&outMaterial, nullptr, path.c_str());
+    if (!materialPtrPtr)
+      return nullptr;
+
+    return *reinterpret_cast<void**>(materialPtrPtr);
+  }
+
   void PrintResult(int slot, const char* message)
   {
     if (!g_pUtils)
@@ -135,6 +171,24 @@ namespace
     keyValues->SetVector4D("tint_color", tint);
 
     g_pUtils->DispatchSpawn(entity, keyValues);
+
+    void* material = FindMaterialByPath(materialPath);
+    if (!material)
+      return false;
+
+    auto* rawEntity = reinterpret_cast<std::uint8_t*>(created);
+    *reinterpret_cast<void**>(rawEntity + kEnvSkyMaterialOffset) = material;
+    *reinterpret_cast<void**>(rawEntity + kEnvSkyMaterialLightingOnlyOffset) = material;
+    *reinterpret_cast<bool*>(rawEntity + kEnvSkyStartDisabledOffset) = false;
+    *reinterpret_cast<float*>(rawEntity + kEnvSkyBrightnessOffset) = 1.0f;
+    *reinterpret_cast<bool*>(rawEntity + kEnvSkyEnabledOffset) = true;
+
+    g_pUtils->SetStateChanged(created, "CEnvSky", "m_hSkyMaterial");
+    g_pUtils->SetStateChanged(created, "CEnvSky", "m_hSkyMaterialLightingOnly");
+    g_pUtils->SetStateChanged(created, "CEnvSky", "m_bStartDisabled");
+    g_pUtils->SetStateChanged(created, "CEnvSky", "m_flBrightnessScale");
+    g_pUtils->SetStateChanged(created, "CEnvSky", "m_bEnabled");
+
     return true;
   }
 
