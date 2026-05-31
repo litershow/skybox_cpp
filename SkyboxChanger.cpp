@@ -9,6 +9,7 @@
 #include <ehandle.h>
 #include <cstdint>
 #include <cstring>
+#include <dlfcn.h>
 #include <string>
 #include <vector>
 
@@ -38,7 +39,30 @@ namespace
   std::string g_DefaultSkyName;
   std::string g_CurrentSkyName;
   std::string g_CurrentSkyMaterial;
+  std::string g_LastReplaceError;
   bool g_StartupInitialized = false;
+
+  void* AcquireMaterialSystem()
+  {
+    if (g_pMaterialSystem)
+      return g_pMaterialSystem;
+
+    using RawCreateInterfaceFn = void* (*)(const char*, int*);
+    constexpr const char* kInterfaceName = "VMaterialSystem2_001";
+    constexpr const char* kLinuxMaterialModule = "libmaterialsystem2.so";
+
+    void* handle = dlopen(kLinuxMaterialModule, RTLD_NOW | RTLD_NOLOAD);
+    if (!handle)
+      return nullptr;
+
+    void* createInterfaceRaw = dlsym(handle, "CreateInterface");
+    if (!createInterfaceRaw)
+      return nullptr;
+
+    auto createInterface = reinterpret_cast<RawCreateInterfaceFn>(createInterfaceRaw);
+    g_pMaterialSystem = createInterface(kInterfaceName, nullptr);
+    return g_pMaterialSystem;
+  }
 
   std::string Trim(std::string value)
   {
@@ -115,7 +139,10 @@ namespace
 
   void* FindMaterialByPath(const std::string& materialPath)
   {
-    if (materialPath.empty() || !g_pMaterialSystem)
+    if (materialPath.empty())
+      return nullptr;
+
+    if (!AcquireMaterialSystem())
       return nullptr;
 
     std::string path = materialPath;
@@ -156,12 +183,20 @@ namespace
 
   bool ReplaceMapSkyEntity(const std::string& materialPath)
   {
+    g_LastReplaceError.clear();
+
     if (!g_pUtils)
+    {
+      g_LastReplaceError = "utils api missing";
       return false;
+    }
 
     CBaseEntity* created = g_pUtils->CreateEntityByName("env_sky", CEntityIndex(-1));
     if (!created)
+    {
+      g_LastReplaceError = "CreateEntityByName returned null";
       return false;
+    }
 
     CEntityInstance* entity = reinterpret_cast<CEntityInstance*>(created);
     auto* keyValues = new CEntityKeyValues();
@@ -185,7 +220,12 @@ namespace
 
     void* material = FindMaterialByPath(materialPath);
     if (!material)
+    {
+      g_LastReplaceError = AcquireMaterialSystem()
+        ? "FindMaterialByPath returned null"
+        : "VMaterialSystem2_001 not found";
       return false;
+    }
 
     auto* rawEntity = reinterpret_cast<std::uint8_t*>(created);
     *reinterpret_cast<void**>(rawEntity + kEnvSkyMaterialOffset) = material;
@@ -314,10 +354,11 @@ CON_COMMAND_F(mm_sky_status, "Show current sky status", FCVAR_GAMEDLL)
 {
   char buffer[512] = {};
   g_SMAPI->Format(buffer, sizeof(buffer),
-    "[SkyboxChangerCpp] default='%s' current='%s' material='%s'\n",
+    "[SkyboxChangerCpp] default='%s' current='%s' material='%s' last='%s'\n",
     g_DefaultSkyName.c_str(),
     g_CurrentSkyName.c_str(),
-    g_CurrentSkyMaterial.c_str());
+    g_CurrentSkyMaterial.c_str(),
+    g_LastReplaceError.c_str());
   PrintResult(-1, buffer);
 }
 
@@ -328,6 +369,7 @@ bool SkyboxChanger::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen,
   GET_V_IFACE_CURRENT(GetEngineFactory, g_pCVar, ICvar, CVAR_INTERFACE_VERSION);
   GET_V_IFACE_CURRENT(GetEngineFactory, engine, IVEngineServer2, SOURCE2ENGINETOSERVER_INTERFACE_VERSION);
   GET_V_IFACE_ANY(GetEngineFactory, g_pMaterialSystem, void, "VMaterialSystem2_001");
+  AcquireMaterialSystem();
 
   g_SMAPI->AddListener(this, this);
   ConVar_Register(FCVAR_GAMEDLL | FCVAR_SERVER_CAN_EXECUTE | FCVAR_CLIENT_CAN_EXECUTE | FCVAR_NOTIFY);
@@ -360,7 +402,7 @@ void SkyboxChanger::AllPluginsLoaded()
 }
 
 const char* SkyboxChanger::GetLicense() { return "GPL"; }
-const char* SkyboxChanger::GetVersion() { return "0.1.2"; }
+const char* SkyboxChanger::GetVersion() { return "0.1.3"; }
 const char* SkyboxChanger::GetDate() { return __DATE__; }
 const char* SkyboxChanger::GetLogTag() { return "SkyboxChangerCpp"; }
 const char* SkyboxChanger::GetAuthor() { return "OpenAI Codex"; }
